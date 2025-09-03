@@ -1,3 +1,4 @@
-python-telegram-bot==13.15  # Use a stable v13 version
+python-telegram-bot==20.7
 aiohttp==3.9.1
 python-dotenv==1.0.0
+urllib3==1.26.18
