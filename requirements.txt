@@ -1,0 +1,3 @@
+python-telegram-bot==13.15  # Use a stable v13 version
+aiohttp==3.9.1
+python-dotenv==1.0.0
