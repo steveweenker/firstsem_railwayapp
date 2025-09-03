@@ -6,15 +6,24 @@ import time
 import aiohttp
 from telegram import Bot, Update
 from telegram.error import TelegramError, RetryAfter
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext
-from aiohttp import web
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+from dotenv import load_dotenv
 
-# Configuration
+# Load environment variables from .env file if it exists
+load_dotenv()
+
+# Configuration - Get from environment variables
 BOT_TOKEN = os.getenv('BOT_TOKEN')
 CHAT_ID = os.getenv('CHAT_ID')
 URL = 'https://results.beup.ac.in/BTech1stSem2024_B2024Results.aspx'
 RESULT_URL_TEMPLATE = 'https://results.beup.ac.in/ResultsBTech1stSem2024_B2024Pub.aspx?Sem=I&RegNo={reg_no}'
 REG_NO_FILE = 'registration_numbers.txt'
+
+# Validate required environment variables
+if not BOT_TOKEN:
+    raise ValueError("BOT_TOKEN environment variable is required")
+if not CHAT_ID:
+    raise ValueError("CHAT_ID environment variable is required")
 
 # Optimization Parameters
 BATCH_SIZE = 20
@@ -28,19 +37,14 @@ NOTIFICATION_INTERVAL = 7200  # Notify every 2 hours (7200 seconds)
 
 # Logging Setup
 logging.basicConfig(
-    handlers=[
-        logging.StreamHandler()
-    ],
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
-
 def clean_registration_number(reg_no):
     """Ultra-fast validation"""
     return reg_no.strip() if len(reg_no.strip()) == 11 and reg_no.strip().isdigit() else ""
-
 
 async def fetch_result_html(session, reg_no):
     """Async fetch with connection reuse"""
@@ -56,7 +60,6 @@ async def fetch_result_html(session, reg_no):
                 return None
             await asyncio.sleep(2 ** attempt)  # exponential backoff
 
-
 async def send_telegram_message(bot, message):
     """Non-blocking message sender"""
     try:
@@ -68,7 +71,6 @@ async def send_telegram_message(bot, message):
         await send_telegram_message(bot, message)  # Retry
     except TelegramError as e:
         logger.error(f"Message failed: {e}")
-
 
 async def send_html_file(bot, reg_no, html_content):
     """In-memory file handling"""
@@ -85,7 +87,6 @@ async def send_html_file(bot, reg_no, html_content):
     except Exception as e:
         logger.error(f"File send failed for {reg_no}: {e}")
         return False
-
 
 async def process_batch(bot, session, batch):
     """Parallel batch processor"""
@@ -106,7 +107,6 @@ async def process_batch(bot, session, batch):
             await send_telegram_message(bot, f"✅ Sent: {reg_no}")
 
     return successful
-
 
 async def process_registration_file(bot):
     """Optimized file processor"""
@@ -142,7 +142,6 @@ async def process_registration_file(bot):
             f"📊 Final: {len(all_successful)}/{total} successful\n"
             f"Failed: {total - len(all_successful)}"
         )
-
 
 async def monitor_website():
     bot = Bot(token=BOT_TOKEN)
@@ -180,65 +179,39 @@ async def monitor_website():
 
             await asyncio.sleep(CHECK_INTERVAL)
 
-
-async def start(update: Update, context: CallbackContext):
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "⚡ Turbo Results Bot\n\n"
         "Send registration numbers (1 per line) or /batch to process file"
     )
 
-
-async def handle_batch(update: Update, context: CallbackContext):
-    if str(update.message.chat_id) != CHAT_ID:
+async def handle_batch(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if str(update.effective_chat.id) != CHAT_ID:
         await update.message.reply_text("❌ Unauthorized")
         return
-    await process_registration_file(context.bot)
-
-
-# Health check endpoints for UptimeRobot
-async def health_check(request):
-    return web.Response(text="OK - Bot is alive")
-
-
-async def start_web_server():
-    """Start a simple web server for health checks"""
-    app = web.Application()
-    app.router.add_get('/', health_check)
-    app.router.add_get('/health', health_check)
     
-    runner = web.AppRunner(app)
-    await runner.setup()
-    
-    # Use Render's port or default to 8080
-    port = int(os.environ.get('PORT', 8080))
-    site = web.TCPSite(runner, '0.0.0.0', port)
-    await site.start()
-    
-    logging.info(f"Health check server running on port {port}")
-    return runner
-
+    bot = context.bot
+    await process_registration_file(bot)
 
 async def main():
-    # Start the health check server for UptimeRobot
-    runner = await start_web_server()
-    
     # Start monitoring in the background
     asyncio.create_task(monitor_website())
     
     # Start the Telegram bot
-    app = Application.builder().token(BOT_TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("batch", handle_batch))
+    application = Application.builder().token(BOT_TOKEN).build()
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("batch", handle_batch))
     
-    await app.initialize()
-    await app.start()
-    await app.updater.start_polling()
+    logger.info("Bot starting on Railway...")
+    await application.initialize()
+    await application.start()
+    await application.updater.start_polling()
     
-    logging.info("Bot is fully operational with UptimeRobot support")
+    logger.info("✅ Bot is fully operational on Railway!")
+    await send_telegram_message(Bot(token=BOT_TOKEN), "🚀 Bot deployed and running on Railway!")
     
     # Keep running forever
     await asyncio.Future()
-
 
 if __name__ == '__main__':
     asyncio.run(main())
