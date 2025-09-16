@@ -32,8 +32,8 @@ MESSAGE_DELAY = 1
 RETRY_MAX_ATTEMPTS = 3
 
 # Monitoring Parameters
-CHECK_INTERVAL = 2  # Check every 2 seconds
-NOTIFICATION_INTERVAL = 7200  # Notify every 2 hours (7200 seconds)
+CHECK_INTERVAL = 1  # Check every 2 seconds
+NOTIFICATION_INTERVAL = 2  # Notify every 2 hours (7200 seconds)
 
 # Logging Setup
 logging.basicConfig(
